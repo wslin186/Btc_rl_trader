@@ -1,0 +1,16 @@
+# IDE 配置
+.idea/
+
+# 虚拟环境
+env/
+venv/
+
+# 数据、日志、模型、报表等大文件
+data/
+logs/
+models/
+reports/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
