@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/trading_env python
 # -*- coding: utf-8 -*-
 """
 run_pipeline.py —— 一键：下载 → 预处理 → 训练 [→ 评估]，可选自动启动 TensorBoard

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/trading_env python
 # -*- coding: utf-8 -*-
 """
 evaluate_visual.py —— 价格曲线 + 买卖点 + 净值曲线 可视化 (PNG & HTML)
@@ -14,16 +14,18 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
-from env import BTCTradingEnv
+from trading_env import BTCTradingEnv
 
 # ---------------- 全局路径 ----------------
-ROOT       = Path(__file__).resolve().parents[1]
-CFG        = yaml.safe_load((ROOT / "config" / "config.yaml").read_text("utf-8"))
-MODEL_DIR  = ROOT / "models"
-REPORT_DIR = ROOT / "reports"; REPORT_DIR.mkdir(exist_ok=True)
-VEC_PKL    = MODEL_DIR / "vec_norm.pkl"
+ROOT = Path(__file__).resolve().parents[1]
+CFG = yaml.safe_load((ROOT / "config" / "config.yaml").read_text("utf-8"))
+MODEL_DIR = ROOT / "models"
+REPORT_DIR = ROOT / "reports";
+REPORT_DIR.mkdir(exist_ok=True)
+VEC_PKL = MODEL_DIR / "vec_norm.pkl"
 
 
 # =====================================================================
@@ -40,7 +42,7 @@ def load_latest_model() -> Path:
 
 def build_env(test_df: pd.DataFrame, env_cfg: dict):
     """
-    返回 env, 以及布尔 is_vec_env
+    返回 trading_env, 以及布尔 is_vec_env
     """
     base_env = DummyVecEnv(
         [lambda: BTCTradingEnv(test_df.copy(), **env_cfg)]
@@ -48,11 +50,11 @@ def build_env(test_df: pd.DataFrame, env_cfg: dict):
 
     if VEC_PKL.exists():
         vec_env: VecNormalize = VecNormalize.load(VEC_PKL, base_env)
-        vec_env.training = False          # 冻结均值方差
+        vec_env.training = False  # 冻结均值方差
         vec_env.norm_reward = False
         return vec_env, True
     else:
-        return base_env, True             # DummyVecEnv 也是 VecEnv
+        return base_env, True  # DummyVecEnv 也是 VecEnv
 
 
 # =====================================================================
@@ -87,13 +89,13 @@ def env_step(env, action):
 # 主回测逻辑
 # =====================================================================
 def run_backtest(det: bool):
-    data_cfg   = CFG["data"]
-    env_cfg    = CFG["env"]
+    data_cfg = CFG["data"]
+    env_cfg = CFG["trading_env"]
 
     # ---------- 载入测试集 ----------
     df = pd.read_parquet(ROOT / data_cfg["processed_path"])
     start = pd.to_datetime(data_cfg["test_start"])
-    end   = pd.to_datetime(data_cfg["test_end"])
+    end = pd.to_datetime(data_cfg["test_end"])
     test_df = df[(df["timestamp"] >= start) & (df["timestamp"] <= end)].reset_index(drop=True)
 
     # ---------- 环境 ----------
@@ -103,7 +105,7 @@ def run_backtest(det: bool):
     model = PPO.load(load_latest_model())
 
     # ---------- 回测循环 ----------
-    obs   = env_reset(env)
+    obs = env_reset(env)
     equity_curve = []
     trades = []
 
@@ -113,19 +115,19 @@ def run_backtest(det: bool):
         obs, reward, done, info = env_step(env, action)
 
         # 记录净值
-        equity_curve.append((test_df.loc[min(step, len(test_df)-1), "timestamp"],
+        equity_curve.append((test_df.loc[min(step, len(test_df) - 1), "timestamp"],
                              info["account_value"]))
 
-        # 若刚执行完交易，VecNormalize -> info 不含 trade_log, 只能用 env
+        # 若刚执行完交易，VecNormalize -> info 不含 trade_log, 只能用 trading_env
         if hasattr(env, "venv"):
-            inner_env: BTCTradingEnv = env.venv.envs[0]  # deepest env
+            inner_env: BTCTradingEnv = env.venv.envs[0]  # deepest trading_env
         else:
             inner_env: BTCTradingEnv = env.envs[0]
 
         if inner_env.trade_log and inner_env.trade_log[-1][1] == inner_env._cursor - 1:
             side = inner_env.trade_log[-1][0]
-            px   = inner_env.trade_log[-1][2]
-            t    = test_df.loc[inner_env._cursor - 1, "timestamp"]
+            px = inner_env.trade_log[-1][2]
+            t = test_df.loc[inner_env._cursor - 1, "timestamp"]
             trades.append(dict(t=t, px=px, side=side))
 
         if done or step >= len(test_df) - 2:
@@ -152,18 +154,20 @@ def draw_matplotlib(test_df, equity, trades, file_png):
     # ------- 价格折线 -------
     ax1.plot(test_df["timestamp"], test_df["close"],
              lw=0.8, label="BTC price", color="#999")
-    buys  = trades[trades["side"] == "BUY"]
+    buys = trades[trades["side"] == "BUY"]
     sells = trades[trades["side"] == "SELL"]
-    ax1.scatter(buys["t"],  buys["px"],  marker="^", c="green", s=60, label="BUY")
-    ax1.scatter(sells["t"], sells["px"], marker="v", c="red",   s=60, label="SELL")
-    ax1.set_ylabel("Price (USDT)"); ax1.legend(loc="upper left")
+    ax1.scatter(buys["t"], buys["px"], marker="^", c="green", s=60, label="BUY")
+    ax1.scatter(sells["t"], sells["px"], marker="v", c="red", s=60, label="SELL")
+    ax1.set_ylabel("Price (USDT)");
+    ax1.legend(loc="upper left")
 
     # ------- 净值曲线 -------
-    init_cash = CFG["env"]["init_cash"]         # ← 用全局 CFG
+    init_cash = CFG["trading_env"]["init_cash"]  # ← 用全局 CFG
     bh_equity = (test_df["close"] / test_df["close"].iloc[0]) * init_cash
     ax2.plot(equity.index, equity.values, label="Strategy", lw=1.3)
     ax2.plot(bh_equity.index, bh_equity.values, label="Buy & Hold", lw=1.0, ls="--")
-    ax2.set_ylabel("Equity (USDT)"); ax2.legend(loc="upper left")
+    ax2.set_ylabel("Equity (USDT)");
+    ax2.legend(loc="upper left")
 
     fig.tight_layout();
     fig.savefig(file_png, dpi=150);
@@ -171,48 +175,119 @@ def draw_matplotlib(test_df, equity, trades, file_png):
 
 
 def draw_plotly(test_df, equity, trades, file_html):
-    price = go.Scatter(x=test_df["timestamp"], y=test_df["close"],
-                       mode="lines", name="BTC price", line=dict(color="#999"))
-    buy_scat = go.Scatter(x=trades[trades["side"] == "BUY"]["t"],
-                          y=trades[trades["side"] == "BUY"]["px"],
-                          mode="markers", marker=dict(symbol="triangle-up",
-                                                      color="green", size=9),
-                          name="BUY")
-    sell_scat = go.Scatter(x=trades[trades["side"] == "SELL"]["t"],
-                           y=trades[trades["side"] == "SELL"]["px"],
-                           mode="markers", marker=dict(symbol="triangle-down",
-                                                       color="red", size=9),
-                           name="SELL")
-    eq_curve = go.Scatter(x=equity.index, y=equity.values,
-                          mode="lines", name="Equity", yaxis="y2")
+    # 创建子图布局
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                        vertical_spacing=0.1,
+                        subplot_titles=("比特币价格与交易点", "策略收益率"),
+                        row_heights=[0.7, 0.3])
 
-    layout = go.Layout(
-        title="BTC Strategy Backtest",
-        xaxis=dict(domain=[0, 1]),
-        yaxis=dict(title="Price (USDT)"),
-        yaxis2=dict(title="Equity", overlaying="y", side="right"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02)
+    # ------- 上图：价格与买卖点 -------
+    # 价格线
+    fig.add_trace(
+        go.Scatter(
+            x=test_df["timestamp"],
+            y=test_df["close"],
+            mode="lines",
+            name="BTC价格",
+            line=dict(color="#999", width=1)
+        ),
+        row=1, col=1
     )
-    go.Figure([price, buy_scat, sell_scat, eq_curve], layout).write_html(
-        file_html, include_plotlyjs="cdn"
+
+    # 买入点
+    buys = trades[trades["side"] == "BUY"]
+    if not buys.empty:
+        buy_text = [f"买入价格: {px:.2f}<br>时间: {t}" for t, px in zip(buys["t"], buys["px"])]
+        fig.add_trace(
+            go.Scatter(
+                x=buys["t"],
+                y=buys["px"],
+                mode="markers",
+                name="买入",
+                marker=dict(symbol="triangle-up", color="green", size=10),
+                hoverinfo="text",
+                hovertext=buy_text
+            ),
+            row=1, col=1
+        )
+
+    # 卖出点
+    sells = trades[trades["side"] == "SELL"]
+    if not sells.empty:
+        sell_text = [f"卖出价格: {px:.2f}<br>时间: {t}" for t, px in zip(sells["t"], sells["px"])]
+        fig.add_trace(
+            go.Scatter(
+                x=sells["t"],
+                y=sells["px"],
+                mode="markers",
+                name="卖出",
+                marker=dict(symbol="triangle-down", color="red", size=10),
+                hoverinfo="text",
+                hovertext=sell_text
+            ),
+            row=1, col=1
+        )
+
+    # ------- 下图：收益率对比 -------
+    # 策略收益率
+    init_cash = CFG["trading_env"]["init_cash"]
+    strategy_return = (equity / equity.iloc[0] - 1) * 100  # 转换为百分比
+    fig.add_trace(
+        go.Scatter(
+            x=equity.index,
+            y=strategy_return,
+            mode="lines",
+            name="策略收益率",
+            line=dict(color="blue", width=2)
+        ),
+        row=2, col=1
     )
+
+    # 买入持有收益率
+    bh_equity = (test_df["close"] / test_df["close"].iloc[0]) * init_cash
+    bh_return = (bh_equity / bh_equity.iloc[0] - 1) * 100  # 转换为百分比
+    fig.add_trace(
+        go.Scatter(
+            x=test_df["timestamp"],
+            y=bh_return,
+            mode="lines",
+            name="买入持有收益率",
+            line=dict(color="gray", width=1.5, dash="dash")
+        ),
+        row=2, col=1
+    )
+
+    # 更新布局
+    fig.update_layout(
+        title="比特币交易策略回测",
+        hovermode="closest",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        height=800,
+    )
+
+    # 更新Y轴标签
+    fig.update_yaxes(title_text="价格 (USDT)", row=1, col=1)
+    fig.update_yaxes(title_text="收益率 (%)", row=2, col=1)
+
+    # 保存为HTML
+    fig.write_html(file_html, include_plotlyjs="cdn")
 
 
 def save_stats(equity: pd.Series, file_csv: Path):
     ret = equity.pct_change().dropna()
     total_return = equity.iloc[-1] / equity.iloc[0] - 1
-    ann_ret = (1 + total_return) ** (365 * 24 / len(equity)) - 1    # 小时 K
+    ann_ret = (1 + total_return) ** (365 * 24 / len(equity)) - 1  # 小时 K
     ann_vol = ret.std() * np.sqrt(365 * 24)
-    sharpe  = ann_ret / ann_vol if ann_vol > 0 else np.nan
-    dd      = (equity.cummax() - equity) / equity.cummax()
-    mdd     = dd.max()
+    sharpe = ann_ret / ann_vol if ann_vol > 0 else np.nan
+    dd = (equity.cummax() - equity) / equity.cummax()
+    mdd = dd.max()
 
     pd.DataFrame([dict(
-        total_return  = total_return,
-        annual_return = ann_ret,
-        annual_vol    = ann_vol,
-        sharpe        = sharpe,
-        max_drawdown  = mdd
+        total_return=total_return,
+        annual_return=ann_ret,
+        annual_vol=ann_vol,
+        sharpe=sharpe,
+        max_drawdown=mdd
     )]).to_csv(file_csv, index=False)
 
 
@@ -222,9 +297,9 @@ def main(det: bool):
 
     # 文件名包含时间戳
     ts = datetime.now().strftime("%Y%m%d_%H%M")
-    png  = REPORT_DIR / f"backtest_{ts}.png"
+    png = REPORT_DIR / f"backtest_{ts}.png"
     html = REPORT_DIR / f"backtest_{ts}.html"
-    csv  = REPORT_DIR / f"backtest_{ts}_summary.csv"
+    csv = REPORT_DIR / f"backtest_{ts}_summary.csv"
 
     draw_matplotlib(test_df, equity, trades, png)
     draw_plotly(test_df, equity, trades, html)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/trading_env python
 # -*- coding: utf-8 -*-
 """
 train.py —— 多进程 PPO 训练（含 VecNormalize，Windows spawn 安全）
@@ -18,7 +18,7 @@ from stable_baselines3.common.vec_env import (
 )
 from stable_baselines3.common.callbacks import ProgressBarCallback
 
-from env import BTCTradingEnv
+from trading_env import BTCTradingEnv
 from utils.data_loader import load_btc_data
 from utils.logger import get_logger
 
@@ -79,7 +79,7 @@ def main() -> None:
         clip_obs=10.0,
         clip_reward=10.0,
     )
-    logger.info(f"🚀 并行环境: {n_envs} | n_steps / env = {n_steps}")
+    logger.info(f"🚀 并行环境: {n_envs} | n_steps / trading_env = {n_steps}")
 
     # ---------- TensorBoard 目录 ----------
     tb_dir = None

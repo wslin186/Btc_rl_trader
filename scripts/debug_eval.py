@@ -2,7 +2,7 @@
 from pathlib import Path, PurePosixPath
 import yaml, pandas as pd, numpy as np
 from stable_baselines3 import PPO
-from env import BTCTradingEnv
+from trading_env import BTCTradingEnv
 
 ROOT = Path(__file__).resolve().parents[1]
 cfg  = yaml.safe_load((ROOT/"config/config.yaml").read_text(encoding="utf-8"))
@@ -21,7 +21,7 @@ model_path = max(model_dir.glob("*.zip"), key=lambda p: p.stat().st_mtime)
 model      = PPO.load(model_path)
 
 # ---------- 环境 ----------
-env = BTCTradingEnv(test_df, **cfg["env"])
+env = BTCTradingEnv(test_df, **cfg["trading_env"])
 obs, _ = env.reset()
 total_reward = 0.0
 

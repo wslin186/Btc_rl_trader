@@ -2,7 +2,7 @@
 .idea/
 
 # 虚拟环境
-env/
+trading_env/
 venv/
 
 # 数据、日志、模型、报表等大文件
