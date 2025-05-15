@@ -35,12 +35,14 @@ data:
 # 3️⃣  环境参数
 # ------------------------------------------------------------------
 env:
-  window_size: 50
-  init_cash:   10000
+  window_size: 100         # 增加观察窗口大小
+  init_cash:   100000
   fee:         0.0004
   slippage:    0.0002
-  reward_scale: 100        # ← 新增
-  action_reward: 0.01      # ← 新增
+  reward_scale: 200        # 放大对数回报
+  action_reward: 0.5     # 动作切换额外奖励
+  trade_penalty: 0.0001     # 交易惩罚
+  sharpe_coef: 0.2        # 夏普比率奖励系数
 
 # ------------------------------------------------------------------
 # 4️⃣  PPO 基础超参
@@ -48,23 +50,31 @@ env:
 ppo:
   policy:          MlpPolicy
   total_timesteps: 2_000_000
-  n_steps:         512          # 会被 training.n_steps 覆盖
-  batch_size:      512
-  learning_rate:   0.0003
-  gamma:           0.995
-  gae_lambda:      0.97
-  ent_coef:        0.005
+  n_steps:         512
+  batch_size:      128
+  learning_rate:   0.0001
+  gamma:           0.99
+  gae_lambda:      0.95
+  ent_coef:        0.1            # 增加熵系数促进更多探索
   vf_coef:         0.5
   clip_range:      0.2
   max_grad_norm:   0.5
+  n_epochs:        8              # 增加每批次训练轮数
+  total_timesteps: 2000000 # 增加训练时间步
+  target_kl:       0.01
+  verbose:         1
+  tensorboard_log: logs/tb
+  seed:            42
+  device:          auto
 
 # ------------------------------------------------------------------
 # 5️⃣  并行训练（SubprocVecEnv）
 # ------------------------------------------------------------------
 training:
   n_envs:          8            # 并行环境数
-  n_steps:         512          # 每 trading_env 样本数 => 2048/batch
+  n_steps:         512          # 每环境样本数 => 8*512=4096
   total_timesteps: 2_000_000
+  eval_episodes:   20           # 评估回合数
 
 # ------------------------------------------------------------------
 # 6️⃣  模型与日志路径

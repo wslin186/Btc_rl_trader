@@ -1,4 +1,4 @@
-#!/usr/bin/trading_env python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 run_pipeline.py —— 一键：下载 → 预处理 → 训练 [→ 评估]，可选自动启动 TensorBoard
@@ -48,6 +48,8 @@ def parse_args() -> argparse.Namespace:
                         help="训练后立即评估（Step4）")
     parser.add_argument("--tb", action="store_true",
                         help="训练完成后自动启动 TensorBoard 可视化")
+    parser.add_argument("--det", action="store_true",
+                        help="评估时使用确定性模式")
     return parser.parse_args()
 
 
@@ -120,7 +122,7 @@ def main() -> None:
     # --------- Step 4: 评估 ---------
     if args.with_eval:
         logger.info("🚩 Step 4 / 4  回测评估")
-        evaluate_step()
+        evaluate_step(det=args.det)  # 添加det参数
     else:
         logger.info("⏩ 默认跳过评估，可加 --with-eval 执行")
 
