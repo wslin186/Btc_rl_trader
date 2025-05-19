@@ -2,6 +2,30 @@
 # -*- coding: utf-8 -*-
 """
 run_pipeline.py —— 一键：下载 → 预处理 → 训练 [→ 评估]，可选自动启动 TensorBoard
+
+运行指令:
+    # 完整流水线 (下载->预处理->训练)
+    python pipeline/run_pipeline.py
+    
+    # 完整流水线 + 评估
+    python pipeline/run_pipeline.py --with-eval
+    
+    # 完整流水线 + 评估 (确定性模式)
+    python pipeline/run_pipeline.py --with-eval --det
+    
+    # 完整流水线 + TensorBoard可视化
+    python pipeline/run_pipeline.py --tb
+    
+    # 跳过某些步骤
+    python pipeline/run_pipeline.py --skip-download  # 跳过下载
+    python pipeline/run_pipeline.py --skip-prepare   # 跳过预处理
+    python pipeline/run_pipeline.py --skip-train     # 跳过训练
+    
+    # 组合模式
+    python pipeline/run_pipeline.py --skip-download --skip-prepare --with-eval --tb
+    
+    # 仅评估 (跳过前三步)
+    python pipeline/run_pipeline.py --skip-download --skip-prepare --skip-train --with-eval
 """
 
 from __future__ import annotations

@@ -26,6 +26,10 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from trading_env import BTCTradingEnv  # 现在导入 trading_env 应该没问题了
 from tqdm import tqdm  # 导入进度条库
+from utils.logger import get_logger  # 导入日志记录器
+
+# 创建日志记录器
+logger = get_logger("evaluate")
 
 CFG = yaml.safe_load((ROOT / "config" / "config.yaml").read_text("utf-8"))
 MODEL_DIR = ROOT / "models"
@@ -43,7 +47,7 @@ def load_latest_model() -> Path:
                   key=lambda p: p.stat().st_mtime)
     if not zips:
         raise FileNotFoundError("❌ models/ 目录下找不到 ppo_btc_latest_*.zip")
-    print(f"📊 使用模型: {zips[-1].name}")
+    logger.info(f"📊 使用模型: {zips[-1].name}")
     return zips[-1]
 
 
@@ -120,14 +124,14 @@ def run_backtest(det: bool):
     # ---------- 模型 ----------
     model_path = load_latest_model()
     model = PPO.load(model_path)
-    print(f"🤖 模型加载成功: {model_path.name}")
-    print(f"👉 确定性模式: {'启用' if det else '禁用'}")
+    logger.info(f"🤖 模型加载成功: {model_path.name}")
+    logger.info(f"👉 确定性模式: {'启用' if det else '禁用'}")
     
     # 初始化动作计数器
     action_counts = {0: 0, 1: 0, 2: 0}  # 假设动作空间为：0=持有, 1=买入, 2=卖出
     
     # ---------- 回测循环 ----------
-    print("⏳ 开始回测...")
+    logger.info("⏳ 开始回测...")
     obs = env_reset(env)
     equity_curve = []
     trades = []
@@ -135,7 +139,8 @@ def run_backtest(det: bool):
 
     # 使用tqdm创建进度条，总长度为测试数据的长度
     total_steps = len(test_df)
-    with tqdm(total=total_steps, desc="回测进度", ncols=100, bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
+    with tqdm(total=total_steps, desc="回测进度", ncols=100, 
+            bar_format='{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
         step = 0
         while True:
             action, _ = model.predict(obs, deterministic=det)
@@ -188,25 +193,27 @@ def run_backtest(det: bool):
             step += 1
 
     # 打印交易统计汇总
-    print("\n📈 回测结果汇总:")
-    print(f"总步数: {step}")
-    print(f"动作分布: 持有 {action_counts.get(0, 0)} 次, 买入 {action_counts.get(1, 0)} 次, 卖出 {action_counts.get(2, 0)} 次")
-    print(f"总交易次数: {len(trades)} 笔 (买入: {trade_count.get('BUY', 0)}, 卖出: {trade_count.get('SELL', 0)})")
+    # 进度条完成后添加一个空行，防止被其他输出打断
+    logger.info("")
+    logger.info("\n📈 回测结果汇总:")
+    logger.info(f"总步数: {step}")
+    logger.info(f"动作分布: 持有 {action_counts.get(0, 0)} 次, 买入 {action_counts.get(1, 0)} 次, 卖出 {action_counts.get(2, 0)} 次")
+    logger.info(f"总交易次数: {len(trades)} 笔 (买入: {trade_count.get('BUY', 0)}, 卖出: {trade_count.get('SELL', 0)})")
     
     # 计算收益率
     if len(equity_curve) > 0:
         first_equity = equity_curve[0][1]
         last_equity = equity_curve[-1][1]
         total_return = (last_equity / first_equity - 1) * 100
-        print(f"起始资金: {CFG['env']['init_cash']:.2f}, 最终资产: {last_equity:.2f}")
-        print(f"策略收益率: {total_return:.2f}%")
+        logger.info(f"起始资金: {CFG['env']['init_cash']:.2f}, 最终资产: {last_equity:.2f}")
+        logger.info(f"策略收益率: {total_return:.2f}%")
         
         # 计算买入持有收益率
         first_price = test_df['close'].iloc[0]
         last_price = test_df['close'].iloc[-1]
         bh_return = (last_price / first_price - 1) * 100
-        print(f"买入持有收益率: {bh_return:.2f}%")
-        print(f"超额收益率: {total_return - bh_return:.2f}%")
+        logger.info(f"买入持有收益率: {bh_return:.2f}%")
+        logger.info(f"超额收益率: {total_return - bh_return:.2f}%")
 
     equity_series = pd.Series(
         [v for _, v in equity_curve],
@@ -252,7 +259,7 @@ def draw_matplotlib(test_df, equity, trades, file_png, model_name=""):
         if not sells.empty:
             ax1.scatter(sells["t"], sells["px"], marker="v", c="red", s=100, label="SELL", zorder=5)
     else:
-        print("⚠️ 没有检测到交易记录，只显示价格和净值曲线")
+        logger.warning("⚠️ 没有检测到交易记录，只显示价格和净值曲线")
     
     # 优化图表显示
     ax1.set_ylabel("Price (USDT)", fontsize=12)
@@ -497,9 +504,9 @@ def main(det: bool):
     # 将交易记录也传递给save_stats
     save_stats(equity, csv, trades)
 
-    print(f"✅ PNG  保存: {png}")
-    print(f"✅ HTML 保存: {html}")
-    print(f"✅ CSV  保存: {csv}")
+    logger.info(f"✅ PNG  保存: {png}")
+    logger.info(f"✅ HTML 保存: {html}")
+    logger.info(f"✅ CSV  保存: {csv}")
 
 
 # =====================================================================

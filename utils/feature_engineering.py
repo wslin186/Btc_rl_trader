@@ -2,10 +2,21 @@
 # --------------------------------------------------------------
 # 给 K 线 DataFrame 添加核心技术指标，并确保最终无 NaN/Inf
 # --------------------------------------------------------------
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[1]  # 获取项目根目录
+sys.path.insert(0, str(ROOT))  # 添加到Python路径
+
 import pandas as pd
 import numpy as np
 import ta
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from utils.logger import get_logger
+
+# 创建日志记录器
+logger = get_logger("feature_engineering")
 
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -46,14 +57,15 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["rsi"] = ta.momentum.rsi(df["close"], window=14)              # RSI
 
     # === 清洗 ===
-    df = df.fillna(method='ffill')                                   # 前向填充
-    df = df.fillna(method='bfill')                                   # 后向填充
+    # 使用直接方法而不是已弃用的fillna(method=...)
+    df = df.ffill()                                                  # 前向填充
+    df = df.bfill()                                                  # 后向填充
     df = df.replace([np.inf, -np.inf], np.nan)                       # 替换无穷值
     df = df.dropna().reset_index(drop=True)                          # 删除剩余NaN
 
-    # 打印指标数量
+    # 使用日志记录器替换print
     n_features = len(df.columns) - 6  # 减去OHLCV和timestamp
-    print(f"📊 共添加 {n_features} 个核心技术指标")
+    logger.info(f"📊 共添加 {n_features} 个核心技术指标")
 
     return df
 
@@ -76,7 +88,7 @@ def normalize_features(df: pd.DataFrame, method='minmax', exclude_cols=None) -> 
     # 确定需要处理的列
     columns_to_process = [col for col in df.columns if col not in exclude_cols]
     if not columns_to_process:
-        print("⚠️ 没有需要处理的列")
+        logger.warning("⚠️ 没有需要处理的列")
         return df
     
     # 拷贝输入数据
@@ -86,18 +98,18 @@ def normalize_features(df: pd.DataFrame, method='minmax', exclude_cols=None) -> 
     # 选择处理方法
     if method == 'minmax':
         scaler = MinMaxScaler(feature_range=(-1, 1))
-        print(f"🔄 使用Min-Max归一化处理 {len(columns_to_process)} 个特征")
+        logger.info(f"🔄 使用Min-Max归一化处理 {len(columns_to_process)} 个特征")
     else:  # 'standard'
         scaler = StandardScaler()
-        print(f"🔄 使用Z-score标准化处理 {len(columns_to_process)} 个特征")
+        logger.info(f"🔄 使用Z-score标准化处理 {len(columns_to_process)} 个特征")
     
     # 归一化/标准化
     try:
         normalized_data = scaler.fit_transform(feature_data)
         df_processed[columns_to_process] = normalized_data
-        print("✅ 特征处理完成")
+        logger.info("✅ 特征处理完成")
     except Exception as e:
-        print(f"❌ 特征处理失败: {str(e)}")
+        logger.error(f"❌ 特征处理失败: {str(e)}")
     
     return df_processed
 
