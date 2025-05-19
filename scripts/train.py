@@ -25,6 +25,7 @@ from stable_baselines3.common.vec_env import (
 )
 from stable_baselines3.common.callbacks import ProgressBarCallback, EvalCallback
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.monitor import Monitor  # 添加Monitor导入
 
 from trading_env import BTCTradingEnv
 from utils.data_loader import load_btc_data
@@ -43,6 +44,14 @@ def make_env(df, env_cfg: dict, seed: int):
         return env
     return _init
 # ----------------------------------------------------------------------
+
+# 添加评估环境创建函数
+def create_eval_env(env_cfg, test_df): 
+    # 创建基础环境 
+    base_env = BTCTradingEnv(test_df.copy(), **env_cfg) 
+    # 用Monitor包装，以正确报告奖励和回合长度 
+    eval_env = Monitor(base_env) 
+    return eval_env
 
 def save_model_metadata(model_path, model, train_df, params, metrics=None):
     """保存模型元数据到JSON文件"""
@@ -118,7 +127,7 @@ def main() -> None:
     logger.info(f"🚀 并行环境: {n_envs} | n_steps / trading_env = {n_steps}")
 
     # ---------- 创建评估环境 ----------
-    eval_env = DummyVecEnv([make_env(test_df.head(min(1000, len(test_df))), env_cfg, 42)])
+    eval_env = DummyVecEnv([lambda: create_eval_env(env_cfg, test_df.head(min(1000, len(test_df))))])
     eval_env = VecNormalize(
         eval_env,
         norm_obs=True,
@@ -175,7 +184,8 @@ def main() -> None:
     for _ in range(n_episodes):
         done = False
         obs = eval_env.reset()
-        initial_value = eval_env.venv.envs[0].account_value
+        # 修改这一行，通过.env访问Monitor包装的原始环境
+        initial_value = eval_env.venv.envs[0].env.account_value
         
         while not done:
             action, _ = model.predict(obs, deterministic=True)

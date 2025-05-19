@@ -15,6 +15,7 @@ download:
   skip_daily:    1
   checksum:      0
   threads:       8
+  # 以下两项如果未使用可考虑删除
   frequency:     "@daily"       # 可选
   enable_cron:   false
 
@@ -35,33 +36,38 @@ data:
 # 3️⃣  环境参数
 # ------------------------------------------------------------------
 env:
-  window_size: 100         # 增加观察窗口大小
-  init_cash:   100000
-  fee:         0.0004
-  slippage:    0.0002
-  reward_scale: 200        # 放大对数回报
-  action_reward: 0.5     # 动作切换额外奖励
-  trade_penalty: 0.0001     # 交易惩罚
-  sharpe_coef: 0.2        # 夏普比率奖励系数
-
+  window_size: 100         # 保持不变
+  init_cash:   100000      # 初始资金
+  fee:         0.0004      # 交易所手续费
+  slippage:    0.0002      # 滑点
+  reward_scale: 5          # 降低奖励尺度，减少模型过激反应 10->5
+  action_reward: 0.02      # 提高动作奖励，鼓励明确的决策 0.01->0.02
+  trade_penalty: 0.1       # 提高交易惩罚，进一步降低过度交易 0.25->0.1
+  sharpe_coef: 1.0         # 增加夏普系数，更强调稳定收益
+  position_steps: 1        # 全仓模式
+  use_stop_loss: true      # 保持止损功能
+  stop_loss_pct: 0.1      # 止损线设置
+  position_penalty_ratio: 0.7  # 提高持仓惩罚，增强风险意识
+  stop_loss_penalty_ratio: 2.5  # 略微提高止损惩罚
+  trade_cooldown: 3       # 增加交易冷却时间，减少频繁交易
+  balance_buy_sell: false   # 保持平衡买卖
 # ------------------------------------------------------------------
 # 4️⃣  PPO 基础超参
 # ------------------------------------------------------------------
 ppo:
   policy:          MlpPolicy
-  total_timesteps: 2_000_000
-  n_steps:         512
-  batch_size:      128
-  learning_rate:   0.0001
-  gamma:           0.99
-  gae_lambda:      0.95
-  ent_coef:        0.1            # 增加熵系数促进更多探索
-  vf_coef:         0.5
+  n_steps:         2048          # 加倍步数，捕获更长期的市场模式
+  batch_size:      512           # 增加批次大小，提高训练稳定性
+  learning_rate:   0.0001        # 略微提高学习率，加速收敛
+  gamma:           0.998         # 提高未来奖励折扣因子，更注重长期回报 0.995->0.998
+  gae_lambda:      0.96          # 微调GAE参数
+  ent_coef:        0.001         # 降低熵系数，减少随机探索 0.0005->0.001
+  vf_coef:         0.8           # 增加价值函数系数
   clip_range:      0.2
-  max_grad_norm:   0.5
-  n_epochs:        8              # 增加每批次训练轮数
-  total_timesteps: 2000000 # 增加训练时间步
-  target_kl:       0.01
+  max_grad_norm:   0.7           # 提高梯度裁剪阈值
+  n_epochs:        15            # 增加每批次训练轮数，提高样本利用效率
+  total_timesteps: 5000000       # 翻倍训练步数，提高模型性能
+  target_kl:       0.015         # 稍微放宽KL散度限制
   verbose:         1
   tensorboard_log: logs/tb
   seed:            42
@@ -71,10 +77,10 @@ ppo:
 # 5️⃣  并行训练（SubprocVecEnv）
 # ------------------------------------------------------------------
 training:
-  n_envs:          8            # 并行环境数
-  n_steps:         512          # 每环境样本数 => 8*512=4096
-  total_timesteps: 2_000_000
-  eval_episodes:   20           # 评估回合数
+  n_envs:          8           # 增加并行环境数以加速训练
+  n_steps:         2048         # 保持与PPO一致
+  total_timesteps: 5000000     # 与PPO保持一致
+  eval_episodes:   50           # 增加评估回合数，提高评估准确性
 
 # ------------------------------------------------------------------
 # 6️⃣  模型与日志路径
